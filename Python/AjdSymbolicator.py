@@ -165,7 +165,32 @@ def scanBinaryImages(crashReport, dSyms):
 crashFile = "/private/tmp/bla/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/myriad.crash"
 crashFile = "/Users/michaelkloske/Desktop/Triumph Crash/Crash.txt"
 
-dSyms = scanDSyms("/Users/michaelkloske/Desktop/Triumph Crash/")
+# paths to locate DSYMS
+#  - next to python program
+#  - next to crash report
+#  - working directory
+
+def findAndScanDSyms(scriptPath, crashFile):
+    dSymSearchPaths = set()
+
+    if scriptPath == None:
+        scriptPath = __file__
+    scriptPath = os.path.dirname(os.path.abspath(__file__))
+
+    dSymSearchPaths.add(scriptPath)
+    dSymSearchPaths.add(os.getcwd())
+    dSymSearchPaths.add(os.path.dirname(crashFile))
+
+    dSyms = {}
+
+    for path in dSymSearchPaths:
+        newDSyms = scanDSyms(path)
+        if newDSyms != None:
+            dSyms.update(newDSyms)
+
+    return dSyms
+
+dSyms = findAndScanDSyms(None, crashFile)
 scanBinaryImages(crashFile, dSyms)
 
 binAddressDict = dSyms
