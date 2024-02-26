@@ -56,7 +56,7 @@ def processLine(binary, arch, address):
         return res
     return ""
 
-def scanCrashReport(crashReport):
+def scanCrashReport(crashReport, outputFile):
     file = open(crashReport)
     inThread = False
     arch = ""
@@ -80,7 +80,7 @@ def scanCrashReport(crashReport):
                     if len(pl) > 0:
                         s = s + " -> " + pl
                     line = s
-        print(line)
+        print(line, file=outputFile)
 
 def scanDSym(dsymPath):
     binaryFile = None
@@ -158,7 +158,8 @@ def scanBinaryImages(crashReport, dSyms):
 
 parser = argparse.ArgumentParser(description = "MacOSX Crash Report Symbolicator")
 
-parser.add_argument("-d", "--dsym_path", action='append', help = "Adds directories where to look for DSyms.")
+parser.add_argument("-d", "--dsym_path", action='append', help = "Adds a search path for DSyms.")
+parser.add_argument("-o", "--output", metavar='<output>', action="store", help = "Places the symbolicated crash report into <output>.")
 parser.add_argument("crashreport", help = "The crash report file that shall be analyzed and symbolicated.")
 
 args = parser.parse_args()
@@ -219,8 +220,18 @@ def findAndScanDSyms(scriptPath, crashFile, additionalSearchPaths = None):
 print(f"Process Crashfile {crashFile}", file=sys.stderr)
 
 dSyms = findAndScanDSyms(None, crashFile, args.dsym_path)
+
+outputFile = sys.stdout
+closeOutput = False
+if args.output != None:
+    path = os.path.abspath(args.output)
+    outputFile = open(path, "w")
+    closeOutput = True
+    print(f"Store symbolicated crash report in {path}")
+
 scanBinaryImages(crashFile, dSyms)
-
 binAddressDict = dSyms
+scanCrashReport(crashFile, outputFile)
 
-scanCrashReport(crashFile)
+if closeOutput:
+    outputFile.close()
