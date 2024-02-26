@@ -179,7 +179,7 @@ def findAndScanDSyms(scriptPath, crashFile):
 
     dSymSearchPaths.add(scriptPath)
     dSymSearchPaths.add(os.getcwd())
-    dSymSearchPaths.add(os.path.dirname(crashFile))
+    dSymSearchPaths.add(os.path.dirname(os.path.abspath(crashFile)))
 
     dSyms = {}
 
