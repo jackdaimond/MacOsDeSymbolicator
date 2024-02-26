@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+import argparse
 import glob
 import os
 import re
 import subprocess
+import sys
 
 class AddressItem:
     def __init__(self):
@@ -22,10 +24,7 @@ class AddressItem:
 binAddressDict = {}
 archDecodeDict = {"ARM-64" : "arm64", "X86-64" : "x86_64"}
 
-
-
 threadBeginRegEx = re.compile("^\s*Thread (\d*)")
-#threadLineRegEx = re.compile("(\\d+)\\s+(\\S\\.*)\\s+(0x[A-Za-z0-9]*)\\s+(\\S+)")
 threadLineRegEx = re.compile("^\\s*(\\d*)\\s*(.*)\\s+(0x[A-Fa-f0-9]+) (.*\\s\\+\\s\\d*)")
 archTypeRegEx = re.compile("^\\s*Code Type\\:\\s*([A-Za-z0-9-_]*)")
 
@@ -43,10 +42,12 @@ def getStrippedOutputFromCall(cmdLine, addEmptyLines = False):
 def processLine(binary, arch, address):
     if binary in binAddressDict:
         item = binAddressDict[binary]
+        
         #atos -arch <BinaryArchitecture> -o <PathToDSYMFile>/Contents/Resources/DWARF/<BinaryName>  -l <LoadAddress> <AddressesToSymbolicate>
         cmdLine = f"atos -arch {arch} -o \"{item.DSymBinaryFilePath}\" -l {item.LoadAddress} {address}"
         #execute cmdLine and return the output
         output = getStrippedOutputFromCall(cmdLine)
+        
         res = ""
         for line in output:
             if len(res) > 0:
@@ -124,7 +125,6 @@ def scanDSyms(basepath):
             dSyms[item.DSymBinary] = item
     return dSyms
 
-#binaryImagesRegEx = re.compile("^\\s*(0x[A-Fa-f0-9]*)\s*-\s*0x[A-Fa-f0-9]*")
 binaryImagesRegEx = re.compile("^\\s*(0x[A-Fa-f0-9]*)\\s*-\\s*0x[A-Fa-f0-9]*\\s+((?:\\w|\\.)*)\\s+(\\(.*\\))")
 
 def findDSymByBundleIdentifier(dSyms, bundleIdentifier):
@@ -156,41 +156,69 @@ def scanBinaryImages(crashReport, dSyms):
                     if foundDSyms == len(dSyms):
                         return
 
-            #scan line
-            #check if DSYM is available
-                #scan DSYM for: Binary, store item with:
-                # DSYM-path, DSYMBinary, load address
-                # binaryAddressDict[DSYMBinary] = item
+parser = argparse.ArgumentParser(description = "MacOSX Crash Report Symbolicator")
 
+parser.add_argument("-d", "--dsym_path", action='append', help = "Adds directories where to look for DSyms.")
+parser.add_argument("crashreport", help = "The crash report file that shall be analyzed and symbolicated.")
 
-crashFile = "/private/tmp/Crash/Crash importing Desktop.txt"
+args = parser.parse_args()
+#crashFile = "/private/tmp/Crash/Crash importing Desktop.txt"
+crashFile = os.path.abspath(args.crashreport)
+
+if not os.path.isfile(crashFile):
+    if not os.path.exists(crashFile):
+        print(f"Crash Report '{crashFile}' does not exists.", file=sys.stderr)
+    else:
+        print(f"Crash Report '{crashFile}' is not a file. Please select a valid Crash Report - text file.", file=sys.stderr)
+    exit(1)
 
 # paths to locate DSYMS
 #  - next to python program
 #  - next to crash report
 #  - working directory
 
-def findAndScanDSyms(scriptPath, crashFile):
-    dSymSearchPaths = set()
+def updateUniqueList(l, value):
+    if value in l:
+        l.remove(value)
+    l.append(value)
+
+def findAndScanDSyms(scriptPath, crashFile, additionalSearchPaths = None):
+    dSymSearchPaths = []
 
     if scriptPath == None:
         scriptPath = __file__
     scriptPath = os.path.dirname(os.path.abspath(__file__))
 
-    dSymSearchPaths.add(scriptPath)
-    dSymSearchPaths.add(os.getcwd())
-    dSymSearchPaths.add(os.path.dirname(os.path.abspath(crashFile)))
+    dSymSearchPaths.append(scriptPath)
+    if additionalSearchPaths != None:
+        for path in additionalSearchPaths:
+            updateUniqueList(dSymSearchPaths, os.path.abspath(path).upper())
+
+    updateUniqueList(dSymSearchPaths, os.path.dirname(os.path.abspath(crashFile)).upper())
+    updateUniqueList(dSymSearchPaths, os.getcwd().upper())
 
     dSyms = {}
+    processedPaths = set()
+
+    print("Scan DSYM Paths:", file=sys.stderr)
 
     for path in dSymSearchPaths:
+        if os.path.sep == '\\':
+            path = path.upper()
+        if path in processedPaths:
+            continue
+        processedPaths.add(path)
+
+        print(f"    DSYM Path {path}", file=sys.stderr)
         newDSyms = scanDSyms(path)
         if newDSyms != None:
             dSyms.update(newDSyms)
 
     return dSyms
 
-dSyms = findAndScanDSyms(None, crashFile)
+print(f"Process Crashfile {crashFile}", file=sys.stderr)
+
+dSyms = findAndScanDSyms(None, crashFile, args.dsym_path)
 scanBinaryImages(crashFile, dSyms)
 
 binAddressDict = dSyms
