@@ -66,18 +66,19 @@ def scanCrashReport(crashReport):
             m = archTypeRegEx.match(l)
             if m:
                 arch = archDecodeDict[m.group(1)]
-
-        m = threadBeginRegEx.match(l)
-        if m:
-            inThread = True
+            if len(arch) > 0:
+                inThread = True
         elif inThread:
-            m = threadLineRegEx.match(l)
-            if m:
-                pl = processLine(m.group(2).strip(), arch, m.group(3))
-                s = l
-                if len(pl) > 0:
-                    s = s + " -> " + pl
-                line = s
+            if l.strip().startswith("Binary Images:"):
+                inThread = False
+            else:
+                m = threadLineRegEx.match(l)
+                if m:
+                    pl = processLine(m.group(2).strip(), arch, m.group(3))
+                    s = l
+                    if len(pl) > 0:
+                        s = s + " -> " + pl
+                    line = s
         print(line)
 
 def scanDSym(dsymPath):
@@ -104,7 +105,7 @@ def scanDSym(dsymPath):
         item.DSym = dsymPath
         item.DSymBinary = os.path.basename(binaryFile)
         item.DSymBinaryFilePath = binaryFile
-        item.BundleIdentifier = binaryOptions[0].replace("com.apple.xcode.dsym.", "") #com.apple.xcode.dsym.com.zynaptiq.triumph3
+        item.BundleIdentifier = binaryOptions[0].replace("com.apple.xcode.dsym.", "")
         item.DSymVersion = binaryOptions[1]
 
         return item
@@ -162,8 +163,7 @@ def scanBinaryImages(crashReport, dSyms):
                 # binaryAddressDict[DSYMBinary] = item
 
 
-crashFile = "/private/tmp/bla/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/myriad.crash"
-crashFile = "/Users/michaelkloske/Desktop/Triumph Crash/Crash.txt"
+crashFile = "/private/tmp/Crash/Crash importing Desktop.txt"
 
 # paths to locate DSYMS
 #  - next to python program
@@ -194,28 +194,5 @@ dSyms = findAndScanDSyms(None, crashFile)
 scanBinaryImages(crashFile, dSyms)
 
 binAddressDict = dSyms
-
-def initDebug():
-    #"/Users/michaelkloske/Desktop/Triumph Crash/Crash.txt"
-    item = AddressItem()
-    item.DSym = "/Users/michaelkloske/Desktop/Triumph Crash/Zynaptiq TRIUMPH 3.app.dSYM"
-    item.DSymBinary = "Zynaptiq TRIUMPH 3"
-    item.LoadAddress = "0x103f30000"
-
-    binAddressDict["Zynaptiq TRIUMPH 3"] = item
-
-    item = AddressItem()
-    item.DSym = "/private/tmp/bla/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/DSYM/Myriad/Zynaptiq MYRIAD 4.app.dSYM"
-    item.DSymBinary = "Zynaptiq MYRIAD 4"
-    item.LoadAddress = "0x100484000"
-    binAddressDict["Zynaptiq MYRIAD 4"] = item
-
-    item = AddressItem()
-    item.DSym = "/private/tmp/bla/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/20231219.101345_Zynaptiq_Mac_Audio_Applications_Pace_With-ARM11Support_212_notarized/DSYM/Myriad/AFECore.framework.dSYM"
-    item.DSymBinary = "AFECore"
-    item.LoadAddress = "0x100f88000"
-    binAddressDict["AFECore"] = item
-
-#crashFile = "/Users/michaelkloske/Desktop/Triumph Crash/Crash.txt"
 
 scanCrashReport(crashFile)
