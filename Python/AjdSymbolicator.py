@@ -40,21 +40,25 @@ def getStrippedOutputFromCall(cmdLine, addEmptyLines = False):
 
 #arch = "arm64" #"x86_64"
 def processLine(binary, arch, address):
+    item = None
     if binary in binAddressDict:
         item = binAddressDict[binary]
-        
-        #atos -arch <BinaryArchitecture> -o <PathToDSYMFile>/Contents/Resources/DWARF/<BinaryName>  -l <LoadAddress> <AddressesToSymbolicate>
-        cmdLine = f"atos -arch {arch} -o \"{item.DSymBinaryFilePath}\" -l {item.LoadAddress} {address}"
-        #execute cmdLine and return the output
-        output = getStrippedOutputFromCall(cmdLine)
-        
-        res = ""
-        for line in output:
-            if len(res) > 0:
-                res = res + " "
-            res = res + line
-        return res
-    return ""
+    else:
+        item = findDSymByBundleIdentifier(binAddressDict, binary)
+    if item == None:
+        return ""
+
+    #atos -arch <BinaryArchitecture> -o <PathToDSYMFile>/Contents/Resources/DWARF/<BinaryName>  -l <LoadAddress> <AddressesToSymbolicate>
+    cmdLine = f"atos -arch {arch} -o \"{item.DSymBinaryFilePath}\" -l {item.LoadAddress} {address}"
+    #execute cmdLine and return the output
+    output = getStrippedOutputFromCall(cmdLine)
+
+    res = ""
+    for line in output:
+        if len(res) > 0:
+            res = res + " "
+        res = res + line
+    return res
 
 def scanCrashReport(crashReport, outputFile):
     file = open(crashReport)
@@ -125,7 +129,7 @@ def scanDSyms(basepath):
             dSyms[item.DSymBinary] = item
     return dSyms
 
-binaryImagesRegEx = re.compile("^\\s*(0x[A-Fa-f0-9]*)\\s*-\\s*0x[A-Fa-f0-9]*\\s+((?:\\w|\\.)*)\\s+(\\(.*\\))")
+binaryImagesRegEx = re.compile("^\\s*(0x[A-Fa-f0-9]*)\\s*-\\s*0x[A-Fa-f0-9]*\\s+\\+?((?:\\w|\\.)*)\\s+(\\(.*\\))")
 
 def findDSymByBundleIdentifier(dSyms, bundleIdentifier):
     for dSymBundleId in dSyms:
@@ -165,6 +169,7 @@ parser.add_argument("crashreport", help = "The crash report file that shall be a
 args = parser.parse_args()
 #crashFile = "/private/tmp/Crash/Crash importing Desktop.txt"
 crashFile = os.path.abspath(args.crashreport)
+#crashFile = "/tmp/crash/crash.txt"
 
 if not os.path.isfile(crashFile):
     if not os.path.exists(crashFile):
