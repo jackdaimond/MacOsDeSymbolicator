@@ -163,13 +163,24 @@ def scanBinaryImages(crashReport, dSyms):
 parser = argparse.ArgumentParser(description = "MacOSX Crash Report Symbolicator")
 
 parser.add_argument("-d", "--dsym_path", action='append', help = "Adds a search path for DSyms.")
-parser.add_argument("-o", "--output", metavar='<output>', action="store", help = "Places the symbolicated crash report into <output>.")
+parser.add_argument("-o", "--output", action="store", metavar='<output>', help = "Places the symbolicated crash report into <output>. If not provided, output is printed to stdout.")
+# Default is to ignore case of file paths since this is the usual setting on MacOS installations.
+parser.add_argument("--recognise-case", action='store_true', help = "If set, file paths will be processed case insensitive. Default is ignoring case of file paths.")
 parser.add_argument("crashreport", help = "The crash report file that shall be analyzed and symbolicated.")
+
+g_FilePathIgnoreCase = False
+
+def getFilePath(path):
+    if g_FilePathIgnoreCase:
+        path = path.upper()
+    return path
 
 args = parser.parse_args()
 #crashFile = "/private/tmp/Crash/Crash importing Desktop.txt"
 crashFile = os.path.abspath(args.crashreport)
 #crashFile = "/tmp/crash/crash.txt"
+
+g_FilePathIgnoreCase = not args.recognise_case
 
 if not os.path.isfile(crashFile):
     if not os.path.exists(crashFile):
@@ -177,6 +188,11 @@ if not os.path.isfile(crashFile):
     else:
         print(f"Crash Report '{crashFile}' is not a file. Please select a valid Crash Report - text file.", file=sys.stderr)
     exit(1)
+
+if g_FilePathIgnoreCase:
+    print(f"Ignore case for file paths", file=sys.stderr)
+else:
+    print(f"Recognise case for file paths", file=sys.stderr)
 
 # paths to locate DSYMS
 #  - next to python program
@@ -198,10 +214,10 @@ def findAndScanDSyms(scriptPath, crashFile, additionalSearchPaths = None):
     dSymSearchPaths.append(scriptPath)
     if additionalSearchPaths != None:
         for path in additionalSearchPaths:
-            updateUniqueList(dSymSearchPaths, os.path.abspath(path).upper())
+            updateUniqueList(dSymSearchPaths, os.path.abspath(path))
 
-    updateUniqueList(dSymSearchPaths, os.path.dirname(os.path.abspath(crashFile)).upper())
-    updateUniqueList(dSymSearchPaths, os.getcwd().upper())
+    updateUniqueList(dSymSearchPaths, os.getcwd())
+    updateUniqueList(dSymSearchPaths, os.path.dirname(os.path.abspath(crashFile)))
 
     dSyms = {}
     processedPaths = set()
@@ -209,11 +225,10 @@ def findAndScanDSyms(scriptPath, crashFile, additionalSearchPaths = None):
     print("Scan DSYM Paths:", file=sys.stderr)
 
     for path in dSymSearchPaths:
-        if os.path.sep == '\\':
-            path = path.upper()
-        if path in processedPaths:
+        myPath = getFilePath(path)
+        if myPath in processedPaths:
             continue
-        processedPaths.add(path)
+        processedPaths.add(myPath)
 
         print(f"    DSYM Path {path}", file=sys.stderr)
         newDSyms = scanDSyms(path)
